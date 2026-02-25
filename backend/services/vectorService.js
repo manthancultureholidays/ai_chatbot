@@ -1,22 +1,55 @@
 const fs = require('fs');
 const path = require('path');
+const cacheService = require('./cacheService');
+const databaseService = require('./databaseService');
+const logger = require('../config/logger');
 
 class VectorService {
     constructor() {
-        const agentDataPath = path.join(__dirname, '..', 'data', 'agentData.json');
-        const agentLoginPath = path.join(__dirname, '..', 'data', 'agentLoginData.json');
+        this.agentData = [];
+        this.agentLoginData = [];
+        this.initialized = false;
+    }
 
-        this.agentData = fs.existsSync(agentDataPath) ? JSON.parse(fs.readFileSync(agentDataPath, 'utf8')) : [];
-        this.agentLoginData = fs.existsSync(agentLoginPath) ? JSON.parse(fs.readFileSync(agentLoginPath, 'utf8')) : [];
+    async init() {
+        if (this.initialized) return;
+        
+        try {
+            await cacheService.connect();
+            await databaseService.connect();
 
-        this._buildIndexes();
-        this.searchCache = new Map(); // Cache search results
+            // Try loading from database first
+            this.agentData = await databaseService.getAllAgents();
+            this.agentLoginData = await databaseService.getAllLogins();
+
+            // Fallback to JSON files if database is empty
+            if (this.agentData.length === 0) {
+                const agentDataPath = path.join(__dirname, '..', 'data', 'agentData.json');
+                const agentLoginPath = path.join(__dirname, '..', 'data', 'agentLoginData.json');
+                
+                if (fs.existsSync(agentDataPath)) {
+                    this.agentData = JSON.parse(fs.readFileSync(agentDataPath, 'utf8'));
+                }
+                if (fs.existsSync(agentLoginPath)) {
+                    this.agentLoginData = JSON.parse(fs.readFileSync(agentLoginPath, 'utf8'));
+                }
+            }
+
+            this._buildIndexes();
+            this.initialized = true;
+            logger.info('VectorService initialized');
+        } catch (error) {
+            logger.error('VectorService init error:', error);
+            throw error;
+        }
     }
 
     _buildIndexes() {
         this.agentByEmail = new Map();
         this.agentByID = new Map();
-        this.agentByName = new Map(); // Add name index
+        this.agentByName = new Map();
+        this.agentByCompany = new Map(); // Add company index
+        this.agentByNationality = new Map(); // Add nationality index
         this.loginsByIdentifier = new Map();
         this.searchIndex = new Map();
 
@@ -30,6 +63,20 @@ class VectorService {
             if (agent.Name) {
                 this.agentByName.set(agent.Name.toLowerCase(), agent);
             }
+            if (agent.Comp_Name) {
+                const compKey = agent.Comp_Name.toLowerCase();
+                if (!this.agentByCompany.has(compKey)) {
+                    this.agentByCompany.set(compKey, []);
+                }
+                this.agentByCompany.get(compKey).push(agent);
+            }
+            if (agent.Nationality) {
+                const natKey = agent.Nationality.toLowerCase();
+                if (!this.agentByNationality.has(natKey)) {
+                    this.agentByNationality.set(natKey, []);
+                }
+                this.agentByNationality.get(natKey).push(agent);
+            }
 
             const tokens = this._tokenize(`${agent.Name} ${agent.UserName} ${agent.AgentID} ${agent.Comp_Name}`);
             tokens.forEach(token => {
@@ -40,16 +87,22 @@ class VectorService {
             });
         });
 
-        this.agentLoginData.forEach(login => {
+        this.agentLoginData.forEach(login => { 
             if (!login.AGENTID) return;
             const key = login.AGENTID.toLowerCase();
             if (!this.loginsByIdentifier.has(key)) {
-                this.loginsByIdentifier.set(key, []);
+                this.loginsByIdentifier.set(key, []); 
             }
             this.loginsByIdentifier.get(key).push(login);
+            
+            // Index by login ID
+            if (login.ID) {
+                if (!this.loginsByID) this.loginsByID = new Map();
+                this.loginsByID.set(String(login.ID), login);
+            }
         });
 
-        console.log(`Indexed ${this.agentByEmail.size} agents, ${this.searchIndex.size} keywords`);
+        console.log(`Indexed ${this.agentByEmail.size} agents, ${this.agentByCompany.size} companies, ${this.searchIndex.size} keywords`);
     }
 
     _tokenize(text) {
@@ -91,22 +144,54 @@ class VectorService {
     _extractIdentifiers(query) {
         const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
         const agentIDRegex = /-?CHAGT\d+/gi;
+        const loginIDRegex = /\b(?:ID|id)\s*(\d+)\b/gi;
 
         const emails = query.match(emailRegex) || [];
         const agentIDs = query.match(agentIDRegex) || [];
+        
+        const loginIDs = [];
+        let match;
+        while ((match = loginIDRegex.exec(query)) !== null) {
+            loginIDs.push(match[1]);
+        }
 
-        return { emails, agentIDs };
+        return { emails, agentIDs, loginIDs };
     }
 
     async search(query) {
-        const cacheKey = query.toLowerCase().trim();
-        if (this.searchCache.has(cacheKey)) {
-            return this.searchCache.get(cacheKey);
-        }
+        if (!this.initialized) await this.init();
+        
+        const cacheKey = `search:${query.toLowerCase().trim()}`;
+        const cached = await cacheService.get(cacheKey);
+        if (cached) return cached;
 
-        const { emails, agentIDs } = this._extractIdentifiers(query);
+        const { emails, agentIDs, loginIDs } = this._extractIdentifiers(query);
         const results = [];
         const foundAgentIDs = new Set();
+
+        // Check login IDs first
+        if (loginIDs.length > 0 && this.loginsByID) {
+            loginIDs.forEach(loginID => {
+                const login = this.loginsByID.get(loginID);
+                if (login) {
+                    const agent = this._findAgentByIdentifier(login.AGENTID);
+                    if (agent && !foundAgentIDs.has(agent.AgentID)) {
+                        foundAgentIDs.add(agent.AgentID);
+                        results.push({
+                            id: agent.AgentID,
+                            content: this._buildAgentContent(agent),
+                            score: 100
+                        });
+                    } else {
+                        const content = `Login Record (ID: ${login.ID}):
+- Agent: ${login.AGENTID}
+- Login Date: ${login.LOGINDATE}
+`;
+                        results.push({ id: `LOGIN_${login.ID}`, content, score: 100 });
+                    }
+                }
+            });
+        }
 
         // 1. Direct lookup (O(1))
         [...emails, ...agentIDs].forEach(identifier => {
@@ -133,7 +218,28 @@ class VectorService {
             }
         });
 
-        // 2. Inverted index search
+        // 2. Search by nationality (exact match)
+        if (results.length === 0) {
+            const queryLower = query.toLowerCase();
+            if (queryLower.includes('nationality') || queryLower.includes('from') || queryLower.includes('country')) {
+                for (const [nationality, agents] of this.agentByNationality) {
+                    if (queryLower.includes(nationality)) {
+                        agents.forEach(agent => {
+                            if (!foundAgentIDs.has(agent.AgentID)) {
+                                foundAgentIDs.add(agent.AgentID);
+                                results.push({
+                                    id: agent.AgentID,
+                                    content: this._buildAgentContent(agent),
+                                    score: 100
+                                });
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        // 3. Inverted index search
         if (results.length === 0) {
             const tokens = this._tokenize(query).filter(t =>
                 !['what', 'is', 'the', 'of', 'for', 'tell', 'me', 'whose', 'with', 'ends', 'starts', 'agent', 'details', 'give', 'all', 'last', 'login', 'date', 'full'].includes(t)
@@ -142,13 +248,30 @@ class VectorService {
             // Try exact name match first
             const queryName = tokens.join(' ');
             for (const [name, agent] of this.agentByName) {
-                if (name.includes(queryName) || queryName.includes(name.split(' ')[0])) {
+                const nameParts = name.split(' ');
+                const queryParts = queryName.split(' ');
+                
+                // Exact full name match
+                if (name === queryName) {
                     if (!foundAgentIDs.has(agent.AgentID)) {
                         foundAgentIDs.add(agent.AgentID);
                         results.push({
                             id: agent.AgentID,
                             content: this._buildAgentContent(agent),
                             score: 100
+                        });
+                    }
+                }
+                // Partial match (first + last name)
+                else if (queryParts.length >= 2 && 
+                         nameParts.some(p => p === queryParts[0]) && 
+                         nameParts.some(p => p === queryParts[queryParts.length - 1])) {
+                    if (!foundAgentIDs.has(agent.AgentID)) {
+                        foundAgentIDs.add(agent.AgentID);
+                        results.push({
+                            id: agent.AgentID,
+                            content: this._buildAgentContent(agent),
+                            score: 95
                         });
                     }
                 }
@@ -162,10 +285,10 @@ class VectorService {
                     let matchScore = 0;
                     tokens.forEach(token => {
                         nameParts.forEach(part => {
-                            if (this._fuzzyMatch(token, part, 0.6)) matchScore++;
+                            if (this._fuzzyMatch(token, part, 0.75)) matchScore++;
                         });
                     });
-                    if (matchScore > 0) {
+                    if (matchScore >= tokens.length) {
                         fuzzyMatches.push({ agent, score: matchScore });
                     }
                 }
@@ -209,13 +332,8 @@ class VectorService {
             }
         }
 
-        // Cache results
-        if (this.searchCache.size > 100) {
-            const firstKey = this.searchCache.keys().next().value;
-            this.searchCache.delete(firstKey);
-        }
-        this.searchCache.set(cacheKey, results);
-
+        // Cache results with 1 hour TTL
+        await cacheService.set(cacheKey, results, 3600);
         return results;
     }
 

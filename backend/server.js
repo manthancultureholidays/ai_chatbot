@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -6,9 +7,22 @@ const morgan = require('morgan');
 const logger = require('./config/logger');
 const apiRoutes = require('./routes/api');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+const vectorService = require('./services/vectorService');
+const cacheService = require('./services/cacheService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Initialize services
+(async () => {
+    try {
+        await vectorService.init();
+        logger.info('All services initialized');
+    } catch (error) {
+        logger.error('Service initialization failed:', error);
+        process.exit(1);
+    }
+})(); 
 
 // HTTP request logging
 app.use(morgan('combined', {
@@ -41,4 +55,11 @@ app.use(errorHandler);
 app.listen(PORT, () => {
     logger.info(`Server is running on http://localhost:${PORT}`);
     console.log(`Server is running on http://localhost:${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    logger.info('SIGTERM received, shutting down gracefully');
+    await cacheService.disconnect();
+    process.exit(0);
 });

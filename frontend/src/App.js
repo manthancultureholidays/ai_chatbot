@@ -6,7 +6,7 @@ const API_URL = 'http://localhost:5000/api/ask';
 function App() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
-    { text: "Hello! I am your AI Travel Assistant. How can I help you today?", isUser: false }
+    { text: "Hello! I am your AI Travel Assistant. How can I help you today?", isUser: false, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }
   ]);
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null);
@@ -19,14 +19,17 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
+  const clearChat = () => {
+    setMessages([{ text: "Hello! I am your AI Travel Assistant. How can I help you today?", isUser: false, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]);
+  };
+
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
-    const userMessage = { text: input, isUser: true };
+    const userMessage = { text: input, isUser: true, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
     setMessages(prev => [...prev, userMessage]);
 
-    // Add a placeholder bot message for streaming
-    const botMessagePlaceholder = { text: '', isUser: false, contextUsed: true };
+    const botMessagePlaceholder = { text: '', isUser: false, contextUsed: true, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
     setMessages(prev => [...prev, botMessagePlaceholder]);
 
     setInput('');
@@ -74,18 +77,29 @@ function App() {
   return (
     <div className="app-container">
       <header className="header">
-        <div className="logo">✈️</div>
-        <h1>Travel AI Bot (Streaming)</h1>
+        <div className="header-left">
+          <div className="logo">✈️</div>
+          <div>
+            <h1>Travel AI Assistant</h1>
+            <p className="subtitle">Your personal travel guide</p>
+          </div>
+        </div>
+        <button className="clear-btn" onClick={clearChat} title="Clear chat">🗑️</button>
       </header>
 
       <div className="chat-window">
         {messages.map((msg, idx) => (
-          <div key={idx} className={`message ${msg.isUser ? 'user' : 'bot'}`}>
-            {msg.contextUsed && !msg.isUser && <span className="context-badge">Database Verified</span>}
-            {msg.text || (loading && idx === messages.length - 1 ? '...' : '')}
+          <div key={idx} className={`message-wrapper ${msg.isUser ? 'user-wrapper' : 'bot-wrapper'}`}>
+            {!msg.isUser && <div className="avatar bot-avatar">🤖</div>}
+            <div className={`message ${msg.isUser ? 'user' : 'bot'}`}>
+              {msg.contextUsed && !msg.isUser && <span className="context-badge">✓ Verified</span>}
+              <div className="message-text">{msg.text || (loading && idx === messages.length - 1 ? <span className="typing"><span></span><span></span><span></span></span> : '')}</div>
+              <span className="message-time">{msg.time}</span>
+            </div>
+            {msg.isUser && <div className="avatar user-avatar">👤</div>}
           </div>
         ))}
-        <div ref={chatEndRef} />
+        <div ref={chatEndRef} />  
       </div>
 
       <div className="input-area">
@@ -98,7 +112,7 @@ function App() {
           disabled={loading}
         />
         <button onClick={handleSend} disabled={loading}>
-          {loading ? '...' : 'Send'}
+          {loading ? '⏳' : '📤'}
         </button>
       </div>
     </div>

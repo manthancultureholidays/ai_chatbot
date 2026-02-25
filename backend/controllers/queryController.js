@@ -1,10 +1,9 @@
 const vectorService = require('../services/vectorService');
+const llmService = require('../services/llmService');
+const answerExtractor = require('../utils/answerExtractor');
 const { validationResult } = require('express-validator');
 const logger = require('../config/logger');
 const { NotFoundError, ServiceUnavailableError } = require('../utils/errors');
-
-// Assuming Ollama is running at 127.0.0.1:11434
-const OLLAMA_URL = 'http://127.0.0.1:11434/api/generate';
 
 exports.ask = async (req, res, next) => {
     const startTime = Date.now();
@@ -44,66 +43,47 @@ exports.ask = async (req, res, next) => {
         logger.info('Retrieval complete', { retrievalTime, docsFound: relevantDocs.length });
 
         // 2. Build optimized prompt
-        const prompt = `You are an intelligent travel agent database assistant. Answer questions using the provided agent data.
+        const prompt = `You are a helpful travel agent database assistant. Answer questions about travel agents using ONLY the provided data.
 
-IMPORTANT INSTRUCTIONS:
-1. Use ONLY the information in the Context below
-2. If the answer exists in the context, provide it clearly
-3. If the context doesn't contain the answer, respond: "No data found"
-4. For queries about AgentID patterns (ends with, starts with, contains), check ALL agents in the context
-5. Be smart about matching - if user asks "whose agent id ends with 0453", look for any AgentID ending in 0453
+RULES:
+1. Extract information ONLY from the Context below
+2. For company queries: List ALL agents/candidates from that company
+3. For name queries: Provide the specific agent's details
+4. For AgentID queries: Match the exact ID or pattern
+5. If asking for "all candidates" or "all agents" from a company, list every person from that company
+6. Be conversational and natural in your response
+7. If no match found, say "No information found for that query"
 
-Context (All matching agents):
+Context:
 ${context}
 
 User Question: ${question}
 
-Answer:`;
+Answer (be specific and complete):`;
 
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
         res.setHeader('Transfer-Encoding', 'chunked');
 
-        // 3. Send to LLaMA (Generation with Streaming)
+        // 3. Generate with LLM (with fallback support)
         try {
-            const response = await fetch(OLLAMA_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'llama3.2:latest',
-                    prompt: prompt,
-                    stream: true
-                })
-            });
-
-            if (!response.ok) {
-                throw new ServiceUnavailableError('AI service is currently unavailable');
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                chunk.split('\n').filter(Boolean).forEach(line => {
-                    try {
-                        const json = JSON.parse(line);
-                        if (json.response) res.write(json.response);
-                        if (json.done) res.end();
-                    } catch (e) {}
-                });
-            }
-            
+            const result = await llmService.generate(prompt, res);
             const totalTime = Date.now() - startTime;
-            logger.info('Query completed', { totalTime, ip: clientIp });
-
+            logger.info('Query completed', { totalTime, service: result.service, ip: clientIp });
         } catch (err) {
             if (err.isOperational) throw err;
-            logger.error('Ollama error', { error: err.message, ip: clientIp });
-            res.write("AI service temporarily unavailable. Here's the database information:\n\n" + context);
-            res.end();
+            logger.error('All LLM services failed, using answer extractor', { error: err.message, ip: clientIp });
+            
+            // Use simple answer extractor as last resort
+            try {
+                const answer = answerExtractor.extractAnswer(question, context);
+                res.write(answer);
+                res.end();
+                logger.info('Answer extracted successfully', { ip: clientIp });
+            } catch (extractError) {
+                logger.error('Answer extractor failed', { error: extractError.message, ip: clientIp });
+                res.write("Unable to process your query. Please try again.");
+                res.end();
+            }
         }
 
     } catch (error) {
