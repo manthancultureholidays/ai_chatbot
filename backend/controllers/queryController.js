@@ -1,24 +1,30 @@
 const vectorService = require('../services/vectorService');
 const { validationResult } = require('express-validator');
+const logger = require('../config/logger');
 
 // Assuming Ollama is running at 127.0.0.1:11434
 const OLLAMA_URL = 'http://127.0.0.1:11434/api/generate';
 
 exports.ask = async (req, res) => {
     const startTime = Date.now();
+    const clientIp = req.ip || req.connection.remoteAddress;
+    
     try {
         // Validate input
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
+            logger.warn('Validation failed', { ip: clientIp, errors: errors.array() });
             return res.status(400).json({ errors: errors.array() });
         }
 
         const { question } = req.body;
+        logger.info('Query received', { ip: clientIp, question });
 
         // 1. Search relevant data (Retrieval) - optimized with caching
         const relevantDocs = await vectorService.search(question);
         
         if (relevantDocs.length === 0) {
+            logger.info('No data found', { ip: clientIp, question });
             res.setHeader('Content-Type', 'text/plain; charset=utf-8');
             res.write("No data found in the database for your query.");
             res.end();
@@ -27,7 +33,7 @@ exports.ask = async (req, res) => {
 
         const context = relevantDocs.map(d => d.content).join('\n---\n');
         const retrievalTime = Date.now() - startTime;
-        console.log(`Retrieval: ${retrievalTime}ms, Found: ${relevantDocs.length} docs`);
+        logger.info('Retrieval complete', { retrievalTime, docsFound: relevantDocs.length });
 
         // 2. Build optimized prompt
         const prompt = `You are an intelligent travel agent database assistant. Answer questions using the provided agent data.
@@ -81,15 +87,18 @@ Answer:`;
                     } catch (e) {}
                 });
             }
+            
+            const totalTime = Date.now() - startTime;
+            logger.info('Query completed', { totalTime, ip: clientIp });
 
         } catch (err) {
-            console.error("Ollama error:", err.message);
+            logger.error('Ollama error', { error: err.message, ip: clientIp });
             res.write("LLM offline. Database info:\n\n" + context);
             res.end();
         }
 
     } catch (error) {
-        console.error("Error:", error.message);
+        logger.error('Controller error', { error: error.message, stack: error.stack, ip: clientIp });
         res.status(500).end("Internal Server Error");
     }
 };
