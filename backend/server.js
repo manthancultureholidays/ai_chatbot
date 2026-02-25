@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const logger = require('./config/logger');
 const apiRoutes = require('./routes/api');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,6 +33,10 @@ app.use('/api', apiRoutes);
 app.get('/', (req, res) => {
     res.send('AI Travel Chatbot Backend is running.');
 });
+
+// Error handling
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 app.listen(PORT, () => {
     logger.info(`Server is running on http://localhost:${PORT}`);

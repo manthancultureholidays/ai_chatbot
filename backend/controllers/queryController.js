@@ -1,11 +1,12 @@
 const vectorService = require('../services/vectorService');
 const { validationResult } = require('express-validator');
 const logger = require('../config/logger');
+const { NotFoundError, ServiceUnavailableError } = require('../utils/errors');
 
 // Assuming Ollama is running at 127.0.0.1:11434
 const OLLAMA_URL = 'http://127.0.0.1:11434/api/generate';
 
-exports.ask = async (req, res) => {
+exports.ask = async (req, res, next) => {
     const startTime = Date.now();
     const clientIp = req.ip || req.connection.remoteAddress;
     
@@ -14,7 +15,14 @@ exports.ask = async (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             logger.warn('Validation failed', { ip: clientIp, errors: errors.array() });
-            return res.status(400).json({ errors: errors.array() });
+            return res.status(400).json({ 
+                success: false,
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'Invalid input',
+                    details: errors.array()
+                }
+            });
         }
 
         const { question } = req.body;
@@ -68,7 +76,7 @@ Answer:`;
             });
 
             if (!response.ok) {
-                throw new Error(`Ollama returned ${response.status}`);
+                throw new ServiceUnavailableError('AI service is currently unavailable');
             }
 
             const reader = response.body.getReader();
@@ -92,13 +100,14 @@ Answer:`;
             logger.info('Query completed', { totalTime, ip: clientIp });
 
         } catch (err) {
+            if (err.isOperational) throw err;
             logger.error('Ollama error', { error: err.message, ip: clientIp });
-            res.write("LLM offline. Database info:\n\n" + context);
+            res.write("AI service temporarily unavailable. Here's the database information:\n\n" + context);
             res.end();
         }
 
     } catch (error) {
         logger.error('Controller error', { error: error.message, stack: error.stack, ip: clientIp });
-        res.status(500).end("Internal Server Error");
+        next(error);
     }
 };
