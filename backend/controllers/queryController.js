@@ -1,4 +1,5 @@
 const vectorService = require('../services/vectorService');
+const { validationResult } = require('express-validator');
 
 // Assuming Ollama is running at 127.0.0.1:11434
 const OLLAMA_URL = 'http://127.0.0.1:11434/api/generate';
@@ -6,8 +7,13 @@ const OLLAMA_URL = 'http://127.0.0.1:11434/api/generate';
 exports.ask = async (req, res) => {
     const startTime = Date.now();
     try {
+        // Validate input
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
         const { question } = req.body;
-        if (!question) return res.status(400).json({ error: "Question is required" });
 
         // 1. Search relevant data (Retrieval) - optimized with caching
         const relevantDocs = await vectorService.search(question);

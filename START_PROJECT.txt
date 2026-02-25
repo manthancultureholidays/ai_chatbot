@@ -1,0 +1,266 @@
+================================================================================
+                    PROJECT STARTUP GUIDE
+================================================================================
+
+PREREQUISITES
+================================================================================
+1. Node.js (v14 or higher) - Download from https://nodejs.org
+2. Ollama - Download from https://ollama.ai
+3. Git (optional) - For version control
+
+Check if installed:
+  node --version
+  npm --version
+
+
+STEP-BY-STEP STARTUP
+================================================================================
+
+STEP 1: INSTALL OLLAMA & MODEL
+--------------------------------------------------------------------------------
+1. Download and install Ollama from https://ollama.ai
+
+2. Open terminal/command prompt and run:
+   ollama pull llama3.2
+
+3. Verify Ollama is running:
+   curl http://localhost:11434
+   
+   Should return: "Ollama is running"
+
+
+STEP 2: SETUP BACKEND
+--------------------------------------------------------------------------------
+1. Open terminal in project folder:
+   cd c:\Users\hp\Desktop\ai_chatbot\backend
+
+2. Install dependencies:
+   npm install
+
+3. Verify data files exist:
+   - backend/data/agentData.json
+   - backend/data/agentLoginData.json
+   
+   If missing, create empty arrays: []
+
+4. Start backend server:
+   npm start
+
+5. You should see:
+   "Indexed X agents, Y keywords"
+   "Server is running on http://localhost:5000"
+
+6. Test backend (open new terminal):
+   curl http://localhost:5000
+   
+   Should return: "AI Travel Chatbot Backend is running."
+
+
+STEP 3: SETUP FRONTEND
+--------------------------------------------------------------------------------
+1. Open NEW terminal in frontend folder:
+   cd c:\Users\hp\Desktop\ai_chatbot\frontend
+
+2. Install dependencies:
+   npm install
+
+3. Start frontend:
+   npm start
+
+4. Browser should automatically open: http://localhost:3000
+
+5. If not, manually open: http://localhost:3000
+
+
+STEP 4: TEST THE APPLICATION
+--------------------------------------------------------------------------------
+1. You should see the chat interface with:
+   - Header: "Travel AI Bot (Streaming)"
+   - Welcome message from bot
+   - Input field at bottom
+
+2. Try test queries:
+   - "hello"
+   - "agent@example.com" (if you have data)
+   - "what is the email of John Doe" (if you have data)
+
+3. Bot should respond with streaming text
+
+
+TROUBLESHOOTING
+================================================================================
+
+PROBLEM: "Ollama is not running"
+SOLUTION:
+- Start Ollama application
+- Or run: ollama serve
+- Check: curl http://localhost:11434
+
+PROBLEM: "Port 5000 already in use"
+SOLUTION:
+- Kill process on port 5000
+- Or change port in backend/server.js:
+  const PORT = 5001;
+
+PROBLEM: "Port 3000 already in use"
+SOLUTION:
+- Kill process on port 3000
+- Or when prompted, press 'Y' to use different port
+
+PROBLEM: "Cannot find module"
+SOLUTION:
+- Delete node_modules folder
+- Delete package-lock.json
+- Run: npm install
+
+PROBLEM: "No data found"
+SOLUTION:
+- Check backend/data/agentData.json has data
+- Check backend/data/agentLoginData.json has data
+- Restart backend server
+
+PROBLEM: "CORS error"
+SOLUTION:
+- Make sure backend is running on port 5000
+- Make sure frontend is running on port 3000
+- Check browser console for exact error
+
+PROBLEM: "LLM offline"
+SOLUTION:
+- Verify Ollama is running
+- Check model is downloaded: ollama list
+- Pull model again: ollama pull llama3.2
+
+
+QUICK COMMANDS REFERENCE
+================================================================================
+
+START EVERYTHING:
+1. Terminal 1: ollama serve
+2. Terminal 2: cd backend && npm start
+3. Terminal 3: cd frontend && npm start
+
+STOP EVERYTHING:
+- Press Ctrl+C in each terminal
+
+RESTART BACKEND:
+- Terminal 2: Ctrl+C, then npm start
+
+RESTART FRONTEND:
+- Terminal 3: Ctrl+C, then npm start
+
+
+WINDOWS SPECIFIC COMMANDS
+================================================================================
+
+Check if port is in use:
+  netstat -ano | findstr :5000
+  netstat -ano | findstr :3000
+
+Kill process by PID:
+  taskkill /PID <PID> /F
+
+Example:
+  netstat -ano | findstr :5000
+  (Shows PID, e.g., 12345)
+  taskkill /PID 12345 /F
+
+
+FIRST TIME SETUP CHECKLIST
+================================================================================
+☐ Node.js installed
+☐ Ollama installed
+☐ LLaMA 3.2 model downloaded
+☐ Backend dependencies installed (npm install)
+☐ Frontend dependencies installed (npm install)
+☐ Data files exist (agentData.json, agentLoginData.json)
+☐ Ollama running (curl http://localhost:11434)
+☐ Backend running (http://localhost:5000)
+☐ Frontend running (http://localhost:3000)
+☐ Test query successful
+
+
+DEVELOPMENT WORKFLOW
+================================================================================
+
+Daily startup:
+1. Start Ollama (if not auto-started)
+2. cd backend && npm start
+3. cd frontend && npm start
+4. Open http://localhost:3000
+
+Making changes:
+- Backend changes: Restart backend (Ctrl+C, npm start)
+- Frontend changes: Auto-reloads (no restart needed)
+- Data changes: Restart backend
+
+
+PRODUCTION DEPLOYMENT (Future)
+================================================================================
+
+For production, you'll need:
+1. Database setup (MySQL/PostgreSQL)
+2. Environment variables (.env file)
+3. HTTPS certificate
+4. Domain name
+5. Server (AWS, DigitalOcean, etc.)
+6. Process manager (PM2)
+
+See DATABASE_SETUP.txt and ALL_PROBLEMS_ANALYSIS.txt for details.
+
+
+USEFUL URLS
+================================================================================
+Frontend:        http://localhost:3000
+Backend API:     http://localhost:5000
+Backend Health:  http://localhost:5000/
+API Endpoint:    http://localhost:5000/api/ask
+Ollama:          http://localhost:11434
+
+
+SAMPLE DATA (If you need test data)
+================================================================================
+
+Create backend/data/agentData.json:
+[
+  {
+    "Name": "John Doe",
+    "UserName": "john.doe@example.com",
+    "AgentID": "CHAGT1001",
+    "Comp_Name": "ABC Travel"
+  },
+  {
+    "Name": "Jane Smith",
+    "UserName": "jane.smith@example.com",
+    "AgentID": "CHAGT1002",
+    "Comp_Name": "XYZ Tours"
+  }
+]
+
+Create backend/data/agentLoginData.json:
+[
+  {
+    "AGENTID": "CHAGT1001",
+    "LOGINDATE": "2024-01-15T10:30:00.000Z"
+  },
+  {
+    "AGENTID": "CHAGT1002",
+    "LOGINDATE": "2024-01-16T09:15:00.000Z"
+  }
+]
+
+
+NEXT STEPS
+================================================================================
+
+After getting it running:
+1. Read PROJECT_DOCUMENTATION.txt - Understand the architecture
+2. Read ALL_PROBLEMS_ANALYSIS.txt - Know the issues
+3. Fix critical security issues (authentication, CORS)
+4. Migrate to database for better performance
+5. Add testing
+6. Deploy to production
+
+Good luck! 🚀
+
+================================================================================
