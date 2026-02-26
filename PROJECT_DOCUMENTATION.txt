@@ -1,41 +1,91 @@
 ================================================================================
                     AI TRAVEL CHATBOT - PROJECT DOCUMENTATION
+                              COMPLETE TECHNICAL GUIDE
 ================================================================================
+
+Document Version: 2.0
+Last Updated: 2024
+Project Status: Production Ready
+
+TABLE OF CONTENTS
+================================================================================
+1.  Project Overview
+2.  Technology Stack
+3.  Project Structure
+4.  Backend Architecture
+5.  Frontend Architecture
+6.  Core Components (Detailed)
+7.  Code Implementation
+8.  Data Models & Schemas
+9.  API Documentation
+10. Configuration & Environment
+11. Installation & Setup
+12. Deployment Guide
+13. Testing Strategy
+14. Performance & Optimization
+15. Security
+16. Troubleshooting
+17. Maintenance & Monitoring
+18. Future Enhancements
+
 
 PROJECT OVERVIEW
 ================================================================================
 
-Project Name: AI Travel Chatbot
+Project Name: AI Travel Chatbot (RAG-Based Q&A System)
 Type: Full-Stack Web Application with RAG (Retrieval-Augmented Generation)
 Architecture: Client-Server with LLM Integration
-Purpose: Intelligent Q&A system for travel agent data analysis
+Purpose: Intelligent Q&A system for travel agent data analysis and insights
+
+Key Capabilities:
+- Natural language query processing
+- Real-time streaming responses
+- Data quality analysis and anomaly detection
+- Login pattern analysis
+- Company and agent information retrieval
+- Multi-level search with fuzzy matching
+- Caching for performance optimization
+
 
 TECHNOLOGY STACK
 ================================================================================
 
-Backend:
-- Runtime: Node.js
+Backend Technologies:
+- Runtime: Node.js (v16+)
 - Framework: Express.js v5.2.1
 - Database: SQLite3 v5.1.7
-- LLM Integration: Ollama (with fallback support)
+- LLM Integration: Ollama (primary) with vLLM fallback
 - Logging: Winston v3.19.0
 - Validation: Express-validator v7.3.1
 - Rate Limiting: Express-rate-limit v8.2.1
-- HTTP Client: Axios v1.13.5
+- HTTP Client: Axios v1.13.5, node-fetch v3.3.2
+- Request Logging: Morgan v1.10.1
+- Environment: dotenv v17.3.1
 
-Frontend:
+Frontend Technologies:
 - Framework: React v19.2.4
-- UI: Custom CSS with responsive design
-- Testing: Jest, React Testing Library
+- DOM: React-DOM v19.2.4
+- Build Tool: React Scripts v5.0.1
+- Testing: Jest, React Testing Library v16.3.2
+- UI: Custom CSS3 with animations
+- Fonts: Google Fonts (Inter)
+
+Development Tools:
+- Nodemon v3.1.14 (auto-restart)
+- Body-parser v2.2.2
+- CORS v2.8.6
 
 Key Features:
 - RAG-based question answering
-- Vector search with fuzzy matching
-- In-memory caching
+- Vector search with fuzzy matching (Levenshtein distance)
+- In-memory caching with TTL
 - Real-time streaming responses
-- Data quality analysis
+- Data quality analysis (20+ checks)
 - Login pattern detection
 - Multi-LLM fallback support
+- Graceful error handling
+- Request rate limiting
+- Comprehensive logging
 
 
 PROJECT STRUCTURE
@@ -43,7 +93,7 @@ PROJECT STRUCTURE
 
 ai_chatbot/
 │
-├── backend/
+├── backend/                          # Node.js/Express Backend
 │   ├── config/
 │   │   └── logger.js                 # Winston logging configuration
 │   │
@@ -52,12 +102,12 @@ ai_chatbot/
 │   │   └── statsController.js        # Statistics endpoint
 │   │
 │   ├── data/
-│   │   ├── agentData.json           # Travel agent profiles
-│   │   ├── agentLoginData.json      # Login history records
+│   │   ├── agentData.json           # Travel agent profiles (150+ records)
+│   │   ├── agentLoginData.json      # Login history (1000+ records)
 │   │   └── agents.db                # SQLite database
 │   │
 │   ├── logs/
-│   │   ├── combined.log             # All logs
+│   │   ├── combined.log             # All logs (max 5MB, 5 files)
 │   │   └── error.log                # Error logs only
 │   │
 │   ├── middleware/
@@ -68,38 +118,171 @@ ai_chatbot/
 │   │
 │   ├── scripts/
 │   │   ├── generateData.js          # Data generation utilities
-│   │   └── migrateData.js           # Database migration
+│   │   └── migrateData.js           # Database migration script
 │   │
 │   ├── services/
-│   │   ├── cacheService.js          # In-memory caching
-│   │   ├── dataAnalyzer.js          # Data quality & pattern analysis
-│   │   ├── databaseService.js       # SQLite operations
+│   │   ├── cacheService.js          # In-memory caching with TTL
+│   │   ├── dataAnalyzer.js          # Data quality & pattern analysis (500+ lines)
+│   │   ├── databaseService.js       # SQLite operations wrapper
 │   │   ├── llmService.js            # LLM integration (Ollama/vLLM)
-│   │   └── vectorService.js         # Vector search & indexing
+│   │   └── vectorService.js         # Vector search & indexing (600+ lines)
 │   │
 │   ├── utils/
 │   │   ├── answerExtractor.js       # Fallback answer extraction
 │   │   └── errors.js                # Custom error classes
 │   │
 │   ├── .env                         # Environment variables
-│   ├── package.json                 # Dependencies
-│   ├── server.js                    # Entry point
+│   ├── .gitignore                   # Git ignore rules
+│   ├── package.json                 # Dependencies & scripts
+│   ├── package-lock.json            # Locked dependencies
+│   ├── README.md                    # Backend documentation
+│   ├── server.js                    # Entry point (main server)
 │   └── start_rag.bat               # Windows startup script
 │
-└── frontend/
+└── frontend/                         # React Frontend
     ├── public/
     │   ├── index.html               # HTML template
-    │   ├── favicon.ico
-    │   └── manifest.json
+    │   ├── favicon.ico              # App icon
+    │   ├── logo192.png              # PWA icon
+    │   ├── logo512.png              # PWA icon
+    │   ├── manifest.json            # PWA manifest
+    │   └── robots.txt               # SEO robots file
     │
     ├── src/
-    │   ├── App.js                   # Main chat interface
+    │   ├── App.js                   # Main chat interface (120+ lines)
+    │   ├── App.css                  # Component styles
+    │   ├── App.test.js              # Component tests
     │   ├── QAApp.jsx                # Alternative Q&A interface
-    │   ├── App.css                  # Styling
     │   ├── index.js                 # React entry point
-    │   └── index.css                # Global styles
+    │   ├── index.css                # Global styles (300+ lines)
+    │   ├── logo.svg                 # React logo
+    │   ├── reportWebVitals.js       # Performance monitoring
+    │   └── setupTests.js            # Test configuration
     │
-    └── package.json                 # Dependencies
+    ├── .gitignore                   # Git ignore rules
+    ├── package.json                 # Dependencies & scripts
+    ├── package-lock.json            # Locked dependencies
+    └── README.md                    # Frontend documentation
+
+
+BACKEND ARCHITECTURE
+================================================================================
+
+Architecture Pattern: Layered Architecture
+
+┌─────────────────────────────────────────────────────────────┐
+│                        CLIENT LAYER                          │
+│                    (React Frontend)                          │
+└─────────────────────────────────────────────────────────────┘
+                            ↓ HTTP/REST
+┌─────────────────────────────────────────────────────────────┐
+│                      PRESENTATION LAYER                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │   Routes     │→ │ Controllers  │→ │  Middleware  │      │
+│  │   (api.js)   │  │ (query/stats)│  │ (validation) │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│                      BUSINESS LOGIC LAYER                    │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ Vector       │  │ Data         │  │ LLM          │      │
+│  │ Service      │  │ Analyzer     │  │ Service      │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ┌──────────────┐  ┌──────────────┐                        │
+│  │ Cache        │  │ Answer       │                        │
+│  │ Service      │  │ Extractor    │                        │
+│  └──────────────┘  └──────────────┘                        │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│                      DATA ACCESS LAYER                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ Database     │  │ File System  │  │ External     │      │
+│  │ Service      │  │ (JSON)       │  │ APIs (LLM)   │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│                      INFRASTRUCTURE LAYER                    │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ SQLite DB    │  │ Logger       │  │ Error        │      │
+│  │ (agents.db)  │  │ (Winston)    │  │ Handler      │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+
+Request Flow:
+1. Client sends HTTP POST to /api/ask
+2. Express routes to queryController
+3. Validation middleware checks input
+4. Controller checks dataAnalyzer for direct answers
+5. If not found, vectorService performs search
+6. Context retrieved and sent to llmService
+7. LLM generates streaming response
+8. Response streamed back to client
+9. All actions logged via Winston
+10. Errors caught by errorHandler middleware
+
+
+FRONTEND ARCHITECTURE
+================================================================================
+
+Architecture Pattern: Component-Based Architecture
+
+┌─────────────────────────────────────────────────────────────┐
+│                         APP COMPONENT                        │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  State Management (useState, useEffect, useRef)      │  │
+│  │  - messages: Array<Message>                          │  │
+│  │  - input: string                                     │  │
+│  │  - loading: boolean                                  │  │
+│  │  - chatEndRef: RefObject                            │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                            ↓                                 │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │                    HEADER SECTION                     │  │
+│  │  - Logo (animated)                                    │  │
+│  │  - Title & Subtitle                                   │  │
+│  │  - Clear Chat Button                                  │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                            ↓                                 │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │                  CHAT WINDOW SECTION                  │  │
+│  │  - Message List (scrollable)                          │  │
+│  │  - User Messages (right-aligned)                      │  │
+│  │  - Bot Messages (left-aligned)                        │  │
+│  │  - Avatars & Timestamps                               │  │
+│  │  - Typing Indicator                                   │  │
+│  │  - Auto-scroll to bottom                              │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                            ↓                                 │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │                   INPUT AREA SECTION                  │  │
+│  │  - Text Input Field                                   │  │
+│  │  - Send Button                                        │  │
+│  │  - Enter Key Handler                                  │  │
+│  │  - Disabled State (while loading)                     │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+
+Data Flow:
+1. User types message in input field
+2. On Enter or Send click, handleSend() triggered
+3. User message added to messages state
+4. Empty bot message placeholder added
+5. Fetch API called with streaming enabled
+6. Response chunks decoded and appended
+7. Bot message updated in real-time
+8. Auto-scroll to show latest message
+9. Loading state cleared
+
+Styling System:
+- CSS Variables for theming
+- Gradient backgrounds
+- Smooth animations (slideIn, float, bounce)
+- Responsive design (mobile-first)
+- Custom scrollbar styling
+- Hover effects and transitions
 
 
 CORE COMPONENTS DOCUMENTATION
@@ -109,6 +292,24 @@ CORE COMPONENTS DOCUMENTATION
 --------------------------------------------------------------------------------
 Entry point for the backend application.
 
+Full Code Structure:
+```javascript
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan');
+const logger = require('./config/logger');
+const apiRoutes = require('./routes/api');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+const vectorService = require('./services/vectorService');
+const cacheService = require('./services/cacheService');
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+```
+
 Key Responsibilities:
 - Initialize Express server
 - Configure middleware (CORS, body-parser, rate limiting)
@@ -116,21 +317,140 @@ Key Responsibilities:
 - Setup logging with Morgan
 - Handle graceful shutdown
 
+Middleware Stack (in order):
+1. Morgan - HTTP request logging
+2. CORS - Cross-origin resource sharing
+3. Body Parser - JSON parsing
+4. Rate Limiter - 100 req/15min per IP
+5. API Routes - /api/* endpoints
+6. Not Found Handler - 404 responses
+7. Error Handler - Global error handling
+
 Configuration:
-- Port: 5000 (default)
+- Port: 5000 (default, configurable via .env)
 - Rate Limit: 100 requests per 15 minutes per IP
 - CORS: Enabled for all origins
+- Body Parser: JSON only
 
 Startup Sequence:
-1. Load environment variables
-2. Initialize vector service
+1. Load environment variables from .env
+2. Initialize vector service (async)
 3. Connect to database
-4. Setup middleware
-5. Register routes
-6. Start listening on port
+4. Setup middleware stack
+5. Register API routes
+6. Start listening on configured port
+7. Log startup message
+
+Graceful Shutdown:
+- Listens for SIGTERM signal
+- Disconnects cache service
+- Closes database connections
+- Exits with code 0
 
 
 2. VECTOR SERVICE (services/vectorService.js)
+--------------------------------------------------------------------------------
+Core search and retrieval engine using in-memory indexing.
+
+Class Structure:
+```javascript
+class VectorService {
+    constructor() {
+        this.agentData = [];
+        this.agentLoginData = [];
+        this.initialized = false;
+        // Indexes created in _buildIndexes()
+    }
+}
+```
+
+Indexes Created:
+1. agentByEmail: Map<email, agent>
+   - O(1) lookup by email address
+   - Case-insensitive keys
+
+2. agentByID: Map<agentID, agent>
+   - O(1) lookup by agent ID
+   - Case-insensitive keys
+
+3. agentByName: Map<name, agent>
+   - O(1) lookup by full name
+   - Case-insensitive keys
+
+4. agentByCompany: Map<company, [agents]>
+   - O(1) lookup by company name
+   - Returns array of all agents from company
+
+5. agentByNationality: Map<nationality, [agents]>
+   - O(1) lookup by nationality
+   - Returns array of all agents from country
+
+6. loginsByIdentifier: Map<identifier, [logins]>
+   - O(1) lookup of login history
+   - Works with email or agent ID
+
+7. loginsByID: Map<loginID, login>
+   - O(1) lookup by login record ID
+
+8. searchIndex: Map<token, Set<agentIDs>>
+   - Inverted index for token-based search
+   - Tokens are 3+ character words
+
+Key Methods:
+
+init()
+- Connects to cache and database
+- Loads agent and login data
+- Builds all indexes
+- Sets initialized flag
+
+search(query)
+- Main search method
+- Returns array of {id, content, score}
+- Implements multi-strategy search
+
+Search Strategy (in priority order):
+1. Extract identifiers (emails, agent IDs, login IDs)
+2. Direct lookup in indexes (O(1))
+3. Company name matching (exact + fuzzy)
+4. Nationality matching
+5. Name matching (exact + fuzzy)
+6. Token-based inverted index search
+7. Return top results sorted by score
+
+Fuzzy Matching:
+- Algorithm: Levenshtein distance
+- Threshold: 0.7 (70% similarity)
+- Applied to: names, companies, tokens
+- Handles typos and variations
+
+_levenshtein(a, b)
+- Calculates edit distance between strings
+- Dynamic programming implementation
+- Returns minimum edits needed
+
+_fuzzyMatch(query, target, threshold)
+- Wrapper around Levenshtein
+- Normalizes distance to 0-1 score
+- Returns true if above threshold
+
+_buildAgentContent(agent)
+- Formats agent data for LLM context
+- Includes all relevant fields
+- Merges login history
+- Returns formatted string
+
+Caching:
+- All search results cached
+- Cache key: "search:{query}"
+- TTL: 3600 seconds (1 hour)
+- Automatic invalidation
+
+Performance:
+- Index building: O(n) where n = total records
+- Exact search: O(1) average case
+- Fuzzy search: O(n*m) where m = string length
+- Token search: O(k) where k = matching agents
 --------------------------------------------------------------------------------
 Core search and retrieval engine using in-memory indexing.
 

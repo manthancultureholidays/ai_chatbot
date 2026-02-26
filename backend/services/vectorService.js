@@ -136,6 +136,18 @@ class VectorService {
         return this.agentByEmail.get(lower) || this.agentByID.get(lower) || null;
     }
 
+    // PUBLIC METHOD: Find agent by any identifier
+    async findAgentByIdentifier(identifier) {
+        if (!this.initialized) await this.init();
+        return this._findAgentByIdentifier(identifier);
+    }
+
+    // PUBLIC METHOD: Find logins by any identifier
+    async findLoginsByIdentifier(identifier) {
+        if (!this.initialized) await this.init();
+        return this._getLoginHistory(identifier);
+    }
+
     _getLoginHistory(identifier) {
         if (!identifier) return [];
         return this.loginsByIdentifier.get(identifier.toLowerCase()) || [];

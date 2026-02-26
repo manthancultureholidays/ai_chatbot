@@ -156,6 +156,83 @@ class DataAnalyzer {
         return this.loginData.filter(r => r.AGENTID?.toLowerCase() === agentId.toLowerCase()).length;
     }
 
+    // PRE-COMPUTED ANALYTICS FOR COMPLEX QUERIES
+    analyzeTopLoginAgents(n = 5) {
+        this.loadData();
+        const counts = {};
+        for (const login of this.loginData) {
+            const id = (login.AGENTID || '').toLowerCase().trim();
+            if (id) counts[id] = (counts[id] || 0) + 1;
+        }
+        return Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, n)
+            .map(([agentId, count]) => ({ agentId, loginCount: count }));
+    }
+
+    detectRapidLogins(thresholdSeconds = 60, minCount = 5) {
+        this.loadData();
+        const byAgent = {};
+        for (const login of this.loginData) {
+            const id = login.AGENTID?.trim();
+            if (!id) continue;
+            if (!byAgent[id]) byAgent[id] = [];
+            byAgent[id].push(new Date(login.LOGINDATE?.trim()));
+        }
+
+        const suspicious = [];
+        for (const [id, times] of Object.entries(byAgent)) {
+            const valid = times.filter(t => !isNaN(t)).sort((a, b) => a - b);
+            for (let i = 0; i <= valid.length - minCount; i++) {
+                const windowMs = valid[i + minCount - 1] - valid[i];
+                if (windowMs <= thresholdSeconds * 1000) {
+                    suspicious.push({
+                        agentId: id,
+                        loginsInWindow: minCount,
+                        windowSeconds: Math.round(windowMs / 1000),
+                        startTime: valid[i]
+                    });
+                    break;
+                }
+            }
+        }
+        return suspicious.sort((a, b) => a.windowSeconds - b.windowSeconds);
+    }
+
+    crossMatchDocuments() {
+        this.loadData();
+        const loginEmails = new Set(
+            this.loginData.map(l => l.AGENTID?.toLowerCase().trim()).filter(Boolean)
+        );
+        return this.agentData.filter(a => 
+            loginEmails.has(a.UserName?.toLowerCase().trim()) ||
+            loginEmails.has(a.AgentID?.toLowerCase().trim())
+        );
+    }
+
+    detectDataAnomalies() {
+        this.loadData();
+        const issues = [];
+        
+        for (const login of this.loginData) {
+            const id = login.AGENTID || '';
+            const date = login.LOGINDATE || '';
+            
+            if (id.includes('\t'))   issues.push({ type: 'TAB_IN_ID', record: login.ID, value: id });
+            if (id.includes(' '))    issues.push({ type: 'SPACE_IN_EMAIL', record: login.ID, value: id });
+            if (date.includes(' ') && date.includes('T')) 
+                                      issues.push({ type: 'MALFORMED_DATE', record: login.ID, value: date });
+            if (id.includes('.comm')) issues.push({ type: 'EMAIL_TYPO', record: login.ID, value: id });
+        }
+        
+        for (const agent of this.agentData) {
+            const aid = agent.AgentID || '';
+            if (aid.startsWith('-'))  issues.push({ type: 'LEADING_HYPHEN_ID', agent: agent.UserName, value: aid });
+        }
+        
+        return issues;
+    }
+
     getOldestEstablishment() {
         this.loadData();
         const parseDate = (dateStr) => {

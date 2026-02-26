@@ -7,7 +7,7 @@ function App() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
     { text: "Hello! I am your AI Travel Assistant. How can I help you today?", isUser: false, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }
-  ]);
+  ]); 
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null); 
 
