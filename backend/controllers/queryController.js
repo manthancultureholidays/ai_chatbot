@@ -1,6 +1,7 @@
 const vectorService = require('../services/vectorService');
 const llmService = require('../services/llmService');
 const answerExtractor = require('../utils/answerExtractor');
+const dataAnalyzer = require('../services/dataAnalyzer');
 const { validationResult } = require('express-validator');
 const logger = require('../config/logger');
 const { NotFoundError, ServiceUnavailableError } = require('../utils/errors');
@@ -27,15 +28,37 @@ exports.ask = async (req, res, next) => {
         const { question } = req.body;
         logger.info('Query received', { ip: clientIp, question });
 
+        // Check if this is a data quality/analysis question
+        const analyticalAnswer = dataAnalyzer.analyzeQuery(question);
+        if (analyticalAnswer) {
+            logger.info('Analytical query answered', { ip: clientIp });
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.write(analyticalAnswer);
+            res.end();
+            return;
+        }
+
         // 1. Search relevant data (Retrieval) - optimized with caching
         const relevantDocs = await vectorService.search(question);
         
         if (relevantDocs.length === 0) {
-            logger.info('No data found', { ip: clientIp, question });
-            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-            res.write("No data found in the database for your query.");
-            res.end();
-            return;
+            logger.info('No vector results, trying direct data access', { ip: clientIp, question });
+            
+            // Fallback: Load all agent data for queries that need full dataset
+            const databaseService = require('../services/databaseService');
+            const allAgents = await databaseService.getAllAgents();
+            
+            if (allAgents.length === 0) {
+                res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                res.write("No data found in the database for your query.");
+                res.end();
+                return;
+            }
+            
+            // Use all agents as context for queries like "oldest establishment date"
+            relevantDocs.push({
+                content: JSON.stringify(allAgents, null, 2)
+            });
         }
 
         const context = relevantDocs.map(d => d.content).join('\n---\n');
@@ -43,23 +66,24 @@ exports.ask = async (req, res, next) => {
         logger.info('Retrieval complete', { retrievalTime, docsFound: relevantDocs.length });
 
         // 2. Build optimized prompt
-        const prompt = `You are a helpful travel agent database assistant. Answer questions about travel agents using ONLY the provided data.
+        const prompt = `You are an expert data analyst specializing in travel agent databases. Answer questions with precision and detail using ONLY the provided data.
 
 RULES:
 1. Extract information ONLY from the Context below
-2. For company queries: List ALL agents/candidates from that company
-3. For name queries: Provide the specific agent's details
-4. For AgentID queries: Match the exact ID or pattern
-5. If asking for "all candidates" or "all agents" from a company, list every person from that company
-6. Be conversational and natural in your response
-7. If no match found, say "No information found for that query"
+2. For data quality questions: Identify anomalies, malformed data, duplicates, typos
+3. For company queries: List ALL agents from that company with their details
+4. For pattern analysis: Identify login patterns, frequency, time ranges
+5. For statistical queries: Count, aggregate, and analyze the data
+6. Provide specific examples with IDs, names, and relevant details
+7. Format answers clearly with bullet points or numbered lists when appropriate
+8. If no match found, say "No information found for that query"
 
 Context:
 ${context}
 
 User Question: ${question}
 
-Answer (be specific and complete):`;
+Answer (be specific, detailed, and include examples with IDs):`;
 
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
         res.setHeader('Transfer-Encoding', 'chunked');

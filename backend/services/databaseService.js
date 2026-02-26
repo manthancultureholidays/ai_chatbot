@@ -115,6 +115,28 @@ class DatabaseService {
         });
     }
 
+    async getAgentsWithLoginsInDateRange(startDate, endDate) {
+        return new Promise((resolve, reject) => {
+            // Query to find agents who have logins on ALL days in the range
+            const query = `
+                SELECT DISTINCT AGENTID
+                FROM logins
+                WHERE DATE(LOGINDATE) BETWEEN DATE(?) AND DATE(?)
+                GROUP BY AGENTID
+                HAVING COUNT(DISTINCT DATE(LOGINDATE)) = (
+                    SELECT COUNT(DISTINCT DATE(LOGINDATE))
+                    FROM logins
+                    WHERE DATE(LOGINDATE) BETWEEN DATE(?) AND DATE(?)
+                )
+            `;
+            
+            this.db.all(query, [startDate, endDate, startDate, endDate], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows ? rows.map(r => r.AGENTID) : []);
+            });
+        });
+    }
+
     async close() {
         return new Promise((resolve, reject) => {
             this.db.close((err) => err ? reject(err) : resolve());

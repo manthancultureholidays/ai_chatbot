@@ -218,7 +218,67 @@ class VectorService {
             }
         });
 
-        // 2. Search by nationality (exact match)
+        // 2. Search by company name (exact and fuzzy match)
+        if (results.length === 0) {
+            const queryLower = query.toLowerCase();
+            const tokens = this._tokenize(query);
+            
+            // Try exact company match first
+            for (const [compName, agents] of this.agentByCompany) {
+                if (queryLower.includes(compName) || compName.includes(queryLower)) {
+                    agents.forEach(agent => {
+                        if (!foundAgentIDs.has(agent.AgentID)) {
+                            foundAgentIDs.add(agent.AgentID);
+                            results.push({
+                                id: agent.AgentID,
+                                content: this._buildAgentContent(agent),
+                                score: 100
+                            });
+                        }
+                    });
+                }
+            }
+            
+            // Fuzzy company name matching for typos
+            if (results.length === 0 && tokens.length > 0) {
+                const companyQuery = tokens.join(' ');
+                const fuzzyCompanyMatches = [];
+                
+                for (const [compName, agents] of this.agentByCompany) {
+                    // Check if company name fuzzy matches the query
+                    if (this._fuzzyMatch(companyQuery, compName, 0.6)) {
+                        fuzzyCompanyMatches.push({ compName, agents, score: 95 });
+                    } else {
+                        // Check individual words in company name
+                        const compParts = compName.split(' ');
+                        let matchScore = 0;
+                        tokens.forEach(token => {
+                            compParts.forEach(part => {
+                                if (this._fuzzyMatch(token, part, 0.65)) matchScore++;
+                            });
+                        });
+                        if (matchScore >= Math.min(tokens.length, compParts.length)) {
+                            fuzzyCompanyMatches.push({ compName, agents, score: 90 });
+                        }
+                    }
+                }
+                
+                fuzzyCompanyMatches.sort((a, b) => b.score - a.score).slice(0, 5).forEach(match => {
+                    match.agents.forEach(agent => {
+                        if (!foundAgentIDs.has(agent.AgentID)) {
+                            foundAgentIDs.add(agent.AgentID);
+                            results.push({
+                                id: agent.AgentID,
+                                content: this._buildAgentContent(agent),
+                                score: match.score
+                            });
+                        }
+                    });
+                });
+            }
+        }
+
+        // 3. Search by nationality (exact match)
         if (results.length === 0) {
             const queryLower = query.toLowerCase();
             if (queryLower.includes('nationality') || queryLower.includes('from') || queryLower.includes('country')) {
@@ -239,7 +299,7 @@ class VectorService {
             }
         }
 
-        // 3. Inverted index search
+        // 4. Inverted index search
         if (results.length === 0) {
             const tokens = this._tokenize(query).filter(t =>
                 !['what', 'is', 'the', 'of', 'for', 'tell', 'me', 'whose', 'with', 'ends', 'starts', 'agent', 'details', 'give', 'all', 'last', 'login', 'date', 'full'].includes(t)
@@ -347,7 +407,12 @@ class VectorService {
 - Registration Date: ${agent.CreatedDate || 'N/A'}
 `;
 
-        const logins = [...(this._getLoginHistory(agent.UserName) || []), ...(this._getLoginHistory(agent.AgentID) || [])];
+        const loginsByUser = this._getLoginHistory(agent.UserName) || [];
+        const loginsByID = this._getLoginHistory(agent.AgentID) || [];
+        const uniqueLogins = new Map();
+        [...loginsByUser, ...loginsByID].forEach(login => uniqueLogins.set(login.ID, login));
+        const logins = Array.from(uniqueLogins.values());
+        
         if (logins.length > 0) {
             const sorted = logins.sort((a, b) => new Date(b.LOGINDATE) - new Date(a.LOGINDATE));
             content += `- Last Login Date: ${sorted[0].LOGINDATE}\n- Total Logins: ${logins.length}\n`;
